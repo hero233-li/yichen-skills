@@ -6,9 +6,14 @@ import json
 import math
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import wave
+
+OPENVERSE_QUERY = re.compile(r"[a-z0-9][a-z0-9 '-]{0,59}")
+OPENVERSE_MIN_US = 100000
+OPENVERSE_MAX_US = 8000000
 
 
 def digest(path):
@@ -23,6 +28,14 @@ def number(value, label):
     if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
         raise ValueError(label + ' must be a finite number.')
     return float(value)
+
+
+def openverse_query(value):
+    """Normalize the English keywords used to search Openverse sound effects."""
+    query = ' '.join(value.lower().split()) if isinstance(value, str) else ''
+    if not OPENVERSE_QUERY.fullmatch(query):
+        raise ValueError('Openverse sound queries must be 1-60 English letters, digits, spaces or hyphens.')
+    return query
 
 
 def compile_plan(raw):
@@ -115,9 +128,27 @@ def compile_plan(raw):
         if a['end_us'] <= a['start_us']:
             raise ValueError('Subtitles overlap completely; revise phrase boundaries.')
     effects = []
+    openverse = []
     for event in raw.get('sfx', []):
+        if 'openverse' in event:
+            # Mapped here so speed and cuts match speech; openverse_sfx.py downloads and places the sound.
+            if 'name' in event:
+                raise ValueError('A sound cue uses either a registered name or an Openverse query, not both.')
+            query = openverse_query(event['openverse'])
+            gain = number(event.get('volume', 0.5), 'sound volume')
+            limit = round(number(event.get('max_duration', 1.5), 'sound max duration') * 1e6)
+            if not 0 <= gain <= 1 or not OPENVERSE_MIN_US <= limit <= OPENVERSE_MAX_US:
+                raise ValueError('Openverse sound volume must be 0-1 and max_duration 0.1-8 seconds.')
+            start = project(event['source_time'], event.get('snap') == 'next')
+            start = round(round(start * fps / 1e6) * 1e6 / fps)
+            if start + OPENVERSE_MIN_US > total:
+                raise ValueError('Openverse sound cue starts too close to the end of the final video.')
+            openverse.append({'query': query, 'start_us': start, 'max_duration_us': limit,
+                              'volume': gain, 'reason': event.get('reason', '')})
+            continue
         if event.get('name') != '啵1':
-            raise ValueError('Automatic native sound cloning currently supports only registered 啵1.')
+            raise ValueError('Automatic native sound cloning currently supports only registered 啵1; '
+                             'use an English openverse query for other sounds.')
         gain = number(event.get('volume', 0.13), 'sound volume')
         if not 0 <= gain <= 1:
             raise ValueError('Sound volume must be between 0 and 1.')
@@ -131,7 +162,7 @@ def compile_plan(raw):
             'source_sha256': source_hash, 'source_duration_us': round(duration * 1e6),
             'fps': int(fps), 'speed': speed, 'voice_volume': volume,
             'duration_us': total, 'frames': frame_cursor, 'ranges': ranges,
-            'subtitles': subtitles, 'sfx': effects, 'bgm': False,
+            'subtitles': subtitles, 'sfx': effects, 'openverse_sfx': openverse, 'bgm': False,
             'settings': raw.get('settings', {}), 'decisions': raw.get('decisions', [])}
 
 
@@ -183,6 +214,17 @@ def validate_compiled(plan):
             raise ValueError('Compiled sound cue is outside the native allowlist.')
         if not 0 <= cue['start_us'] < cue['start_us'] + cue['duration_us'] <= cursor:
             raise ValueError('Compiled sound extends past the timeline.')
+        if not 0 <= number(cue['volume'], 'sound volume') <= 1:
+            raise ValueError('Compiled sound volume is invalid.')
+    for cue in plan.get('openverse_sfx', []):
+        if openverse_query(cue.get('query')) != cue['query']:
+            raise ValueError('Compiled Openverse query is not normalized.')
+        for field in ['start_us', 'max_duration_us']:
+            if isinstance(cue[field], bool) or not isinstance(cue[field], int):
+                raise ValueError('Compiled Openverse cue times must be integers.')
+        if not 0 <= cue['start_us'] <= cursor - OPENVERSE_MIN_US or \
+                not OPENVERSE_MIN_US <= cue['max_duration_us'] <= OPENVERSE_MAX_US:
+            raise ValueError('Compiled Openverse cue lies outside the timeline.')
         if not 0 <= number(cue['volume'], 'sound volume') <= 1:
             raise ValueError('Compiled sound volume is invalid.')
 
@@ -271,8 +313,12 @@ def main():
         result = compile_plan(plan)
         validate_compiled(result)
         write_compiled(result, args.out)
-        print(json.dumps({'duration': result['duration_us'] / 1e6, 'segments': len(result['ranges']),
-                          'subtitles': len(result['subtitles']), 'sfx': len(result['sfx'])}))
+        summary = {'duration': result['duration_us'] / 1e6, 'segments': len(result['ranges']),
+                   'subtitles': len(result['subtitles']), 'sfx': len(result['sfx']),
+                   'openverse_sfx': len(result['openverse_sfx'])}
+        if result['openverse_sfx']:
+            summary['next'] = 'after from-compiled, run openverse_sfx.py add to place these sounds'
+        print(json.dumps(summary))
     else:
         print(json.dumps(render_audio(plan, args.out, args.work), ensure_ascii=False))
 

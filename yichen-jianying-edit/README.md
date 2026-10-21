@@ -23,13 +23,17 @@ python3 /absolute/path/to/yichen-jianying-edit/scripts/headless_draft.py doctor
 ## 运行前提
 
 Apple Silicon macOS、Python 3.9+、FFmpeg / ffprobe、Xcode 编译工具，以及匹配版本的
-原版剪映。11.5.0 为主版本，11.4.2 为兼容版本，两者支持草稿和原生导出；
+原版剪映。11.6.0 为主版本，11.5.0 / 11.4.2 为兼容版本，均支持草稿和原生导出；
 11.4.0 仅保留历史草稿配置。导出快照必须与当前运行版本一致。
 精确工具链和哈希限制见核心项目说明；这不是任意 Mac/任意剪映版本的兼容承诺。
 
 剪辑计划可以直接由用户或 Agent 提供，不强制使用付费 ASR。`asr_once.py` 仅是可选
 去重包装器，需要另行提供兼容的转写执行器；`YICHEN_ASR_EXECUTOR` 可以指定它的
 本机路径，默认检查当前用户的 `scripts/transcribe.py`。该执行器及任何凭据不随包分发。
+
+自动音效同样是可选步骤：`openverse_sfx.py` 联网访问 Openverse 与 Freesound，挑选的
+音效保留各自的 CC 许可，其中 CC BY-NC 禁止商用。不需要时不运行它；草稿 build/publish
+不联网。
 
 详细操作见 [SKILL.md](SKILL.md)。本 Skill 不授权自动上传视频、公开草稿、购买资源
 或将剪映官方文件重新分发。来源和许可边界见

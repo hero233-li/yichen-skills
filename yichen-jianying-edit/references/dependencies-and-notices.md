@@ -14,6 +14,15 @@
   已有快照验证不需要此可选解析器；字体文件不随源码分发。
 - 可选 ASR 需要单独安装的执行器/Skill、服务访问权限和本次调用授权；本 Skill
   不包含令牌，也不从聊天、剪贴板或浏览器自动寻找凭据。
+- 可选的 `scripts/openverse_sfx.py` 会联网：经 Openverse API（`api.openverse.org`）
+  检索 Freesound 来源的音效，并从 `cdn.freesound.org` 下载预览 MP3。请求只含英文
+  关键词和筛选条件，不上传素材、草稿或账号信息；Openverse 与 Freesound 的服务条款
+  和限流规则另行适用。不需要自动音效时不运行它。
+- 这些第三方音效属于各自作者，不随本项目分发，也不在本项目许可证范围内；每个音效
+  保留作者选定的 Creative Commons 许可（CC0、CC BY 或 CC BY-NC）。CC BY 与 CC BY-NC
+  须按 `credits.md` 署名；CC BY-NC 禁止商用，商单、广告、带货、引流或开通收益的视频
+  不能使用，须替换或加 `--commercial` 重跑。Openverse 汇总的许可信息未经核验，
+  技术上取得音效不等于获得许可；发布前可打开 `credits.md` 中的原始页面复核。
 
 代码许可证只覆盖明示有权许可的部分，不授予剪映程序库、账号或媒体素材的权利。
 本 Skill 的原创部分沿用个人学习和非商业使用条款，见 [LICENSE](../LICENSE)。

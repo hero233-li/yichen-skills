@@ -1,6 +1,6 @@
 # 无界面修改已有草稿的独立副本
 
-适用于本机 11.5.0（主版本）/ 11.4.2（兼容版本），并保留 11.4.0 的历史草稿配置；正式交付限单时间线、多轨本地草稿。入口是 `scripts/headless_draft.py edit`；不是重建成单条视频，也不写原草稿。复制整个草稿目录后，仅修改明确指定的原生字段；未知字段和已登记效果结构在副本构建阶段保留。
+适用于本机 11.6.0（主版本）/ 11.5.0、11.4.2（兼容版本）；11.6.0（可编辑 185、187、189 来源，含本地字体与换字体，复合片段可离线构建与读取、仍禁止首页登记，支持原生冻结快照导出），并保留 11.4.0 的历史草稿配置；正式交付限单时间线、多轨本地草稿。入口是 `scripts/headless_draft.py edit`；不是重建成单条视频，也不写原草稿。复制整个草稿目录后，仅修改明确指定的原生字段；未知字段和已登记效果结构在副本构建阶段保留。
 
 ## 边界与验收
 
@@ -43,7 +43,7 @@ python3 SKILL/scripts/headless_draft.py edit verify --build WORK/edited-build --
 
 - `set_segment`：片段 ID；`set` 支持 `start_us`、`duration_us`、`source_start_us`、`source_duration_us`、`speed`、`volume`、`visible`。视频/文字还支持 `x/y/scale/rotation/opacity`；文字不接受源时间、速度、音量。修改速度时同时提供相符的源/目标时长。动画属性不得只改静态基值；已带关键帧片段的源时间变更暂不支持自动重映射。
 - `replace_text`：文字素材 ID；保留全文一致样式并按 UTF-16 更新长度。局部多样式文字拒绝自动改范围，需专用样式映射。
-- `set_text_font`：文字素材 ID 和绝对 `source`，如 `{"op":"set_text_font","id":"TEXT_MATERIAL_ID","source":"/absolute/path/font.otf"}`。只处理外层及各样式字体路径一致、无在线字体身份的普通文字；静态 OTF/TTF 复制到 `Resources/headless-fonts/`，保留文字、样式和时间。缺失或不支持的字体会报错。独立换字体样例已完成本机 11.5.0 显示、保存重开与原生渲染检查，使用本机构建的 codec；完整 `edit verify` 仍因上游不接受省略默认 `speed: 1` 而失败，不能以字体检查通过代替完整回读通过。环境与证据见核心项目 `docs/LOCAL-FONTS.md`。新建或 Hypit 交接直接使用文字片段的 `font_path`，见 [无界面计划](headless-macos.md)。
+- `set_text_font`：文字素材 ID 和绝对 `source`，如 `{"op":"set_text_font","id":"TEXT_MATERIAL_ID","source":"/absolute/path/font.otf"}`。只处理外层及各样式字体路径一致、无在线字体身份的普通文字；静态 OTF/TTF 复制到 `Resources/headless-fonts/`，保留文字、样式和时间。缺失或不支持的字体会报错。独立换字体样例已完成本机 11.5.0 显示、保存重开与原生渲染检查，使用本机构建的 codec；在 11.5.0 上完整 `edit verify` 仍因上游不接受省略默认 `speed: 1` 而失败，不能以字体检查通过代替完整回读通过。2026-10-20 在 11.6.0 上另做了换字体验收：登记、显示、保存、冷重开与两次完整 `edit verify` 全部通过，因为该默认值已纳入 11.6.0 的回读判定；11.5.0 未重测，其限制保持原记录。环境与证据见核心项目 `docs/LOCAL-FONTS.md` 与 `docs/VERIFICATION.md`。新建或 Hypit 交接直接使用文字片段的 `font_path`，见 [无界面计划](headless-macos.md)。
 - `replace_media`：视频/图片/GIF/本地音频素材 ID 和绝对 `source`。媒体类别须与原素材一致，所有引用的源范围都要落在新素材实际时长内。
 - `rename_track`：轨道 ID 和 `name`。
 - `duplicate_segment`：片段 ID、`start_us`，可指定同类 `track_id`。复制全部配套素材节点和关键帧 ID，保留媒体库文件复用，不共享可变片段节点。
@@ -58,7 +58,7 @@ python3 SKILL/scripts/headless_draft.py edit verify --build WORK/edited-build --
 
 ## 复合片段：离线实验，禁止首页登记
 
-11.4.2 采集的原生 `combination` 嵌套时间线与草稿内 `subdraft/<child-id>/` 结构保留，11.5.0 也提供离线实验入口，不展平成视频。`inspect` / `build` / `verify-build` 可以处理已采集的本地结构；原生冻结快照导出见 [export-macos.md](export-macos.md)。未知复合类型、循环/重复身份、路径越界、嵌套时长变更及多时间线仍拒绝。
+11.4.2 采集的原生 `combination` 嵌套时间线与草稿内 `subdraft/<child-id>/` 结构保留，11.5.0 与 11.6.0 也提供离线实验入口，不展平成视频。2026-10-21 在 11.6.0 上逐条验证：`create_compound` 的 build 与 verify-build 通过；界面右键「新建复合片段（子草稿）」真实建出的复合草稿可被 `inspect` 读到子时间线，其副本 build 与 verify-build 也通过；首页登记仍被拦。11.6.0 现已通过无界面原生冻结快照导出验证；`ui-export` 仍要求已登记草稿，不能绕过复合登记限制。`inspect` / `build` / `verify-build` 可以处理已采集的本地结构；原生冻结快照导出见 [export-macos.md](export-macos.md)。未知复合类型、循环/重复身份、路径越界、嵌套时长变更及多时间线仍拒绝。
 
 已有操作加 `"timeline_id":"CHILD_TIMELINE_ID"` 可明确修改指定子时间线；`{"op":"create_compound","name":"复合片段名称"}` 会包裹所选时间线的全部轨道，不是任意选中子集。此操作仅用于隔离构建研究，未完成子草稿媒体库登记和原生持久化验收。
 

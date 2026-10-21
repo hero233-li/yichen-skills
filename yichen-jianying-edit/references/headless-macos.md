@@ -4,7 +4,7 @@
 
 - 入口：本 Skill 的 `scripts/headless_draft.py`。代码位于单独检出的 Jianying Headless 项目 `engine/`；独立安装 Skill 时设置 `JIANYING_HEADLESS_ROOT`，入口核验代码与蓝图 SHA-256。
 - 应用：`/Applications/VideoFusion-macOS.app`；目标根为当前用户 `Movies/JianyingPro/User Data/Projects/com.lveditor.draft`。
-- 精确 runtime profile：11.5.0 为主版本，11.4.2 为兼容版本；11.4.0 仅保留历史草稿配置。各自固定 version、build、bundle ID 与 libvideoeditor hash；写 live 前核验完整深度签名及 Team ID。未列入的版本会拒绝，不改旧组件的常量。
+- 精确 runtime profile：11.6.0 为主版本，11.5.0 / 11.4.2 为兼容版本；11.6.0（build 13281）支持新建、编辑副本、本地字体、原生导出及复合离线结构与快照导出，保存格式 `189.0.0` 只在该配置下接受；11.4.0 仅保留历史草稿配置。11.6.0 保存会省略默认的 `fps: 30`、片段 `speed: 1` 和片段 `volume: 1`，会重建照片片段的空伴随节点（185 来源还会新增一个 loudness），并重算 UI 自建曲线的平均速度；这些都已按 2026-10-20 实测逐条登记在回读判定里，其他差异仍严格拒绝。各自固定 version、build、bundle ID 与 libvideoeditor hash；写 live 前核验完整深度签名及 Team ID。未列入的版本会拒绝，不改旧组件的常量。
 - 历史本机验收包含 11.4.0 / 11.4.2 的 6 秒、6 轨草稿：视频切片、混合速度、画中画、字幕、标题、WAV BGM 和 MP3 音效。原生打开、播放、保存、退出和冷重开均有分项记录；私人工作目录及原始证据不随源码分发，见下方验证说明。
 - 草稿 build/publish 入口没有调用网络、ASR、视频导出或在线资源下载。用户明确要求成片时另用 [export-macos.md](export-macos.md)；任意本地音频可以导入，但音频格式仍须在剪映中验收；实测源编码为 H.264/AAC、WAV、MP3。HEVC 在输入白名单，尚未在本次新建链路单独验收。
 - 11.4.2 的 25 fps、12 度旋转画中画、同一主轨混合不同视频、彩色标题及描边均已完成实际显示、播放和冷重开回读。其他帧率和编码仍需按实际项目验收，不能把一个样例视为所有组合均已验证。
@@ -43,6 +43,19 @@ python3 SKILL/scripts/headless_draft.py from-compiled --compiled WORK/compiled/c
 ```
 
 这项选择只支持已固定字节身份的本机「啵1」缓存。资源本身复制为本地音频，不保留在线音效的授权/资源身份。MP3 解码时长可能短于音效库显示时长，转换器保留实际可解码部分并报告差异；重复音效发生重叠时使用独立音轨，不裁掉事件。其他已合法取得的音频可直接写入下面的本地计划。
+
+有 Openverse 音效提示时（`compile` 输出的 `openverse_sfx` 大于 0），在 `from-compiled` 和 `build` 之间加一步；计划同时含「啵1」时，`from-compiled` 照常加 `--cached-sounds-as-local`：
+
+```bash
+python3 SKILL/scripts/openverse_sfx.py add --compiled WORK/compiled/compiled.json --plan WORK/headless-plan.json --out WORK/headless-plan-sfx.json --work WORK/openverse-sfx-v1
+python3 SKILL/scripts/headless_draft.py build --plan WORK/headless-plan-sfx.json --out WORK/headless-build
+```
+
+- 联网范围：只用 HTTPS 请求 `api.openverse.org` 检索 Freesound 来源，再从 `cdn.freesound.org` 下载预览 MP3；明文 HTTP、其他主机以及指向其他主机的重定向都会被拒绝。每个不同关键词检索一次，请求里只有关键词和筛选条件。Openverse 匿名额度约为每分钟 20 次、每天 200 次；短暂限流会等待后重试，需等待超过 60 秒时直接报错，不换来源。草稿 build/publish 本身仍不联网。
+- 挑选：标题和标签都对不上关键词的结果不选；像音乐、循环、环境声、人声或合集的结果排在干净匹配之后；CC BY-NC 只在没有干净的 CC0 / CC BY 匹配时选中，其余同等条件下 CC0 优先于 CC BY。默认允许 CC0、CC BY、CC BY-NC，`--commercial` 只检索 CC0 / CC BY。某个关键词没有合格结果时整步失败，写入 `status` 为 `failed` 的 `report.json`，不写新计划；改口播计划里的关键词，重新 `compile` 和 `from-compiled` 后再运行。
+- 处理：起音前保留 3 ms，长度不超过该提示的 `max_duration`，截短处 40 ms 淡出；最响 50 ms 窗口统一到约 -20 dBFS，峰值不超过 -1 dBFS，计划里的 `volume` 在此基础上缩放。输出为 48 kHz PCM WAV，按时间点写入「Openverse 音效 N」音轨，重叠时另开一轨，到成片结尾截止；口播和字幕轨不变。
+- 输出：`--work` 下保留 `search/` 原始响应、`downloads/` 预览 MP3、`sounds/` 处理后的 WAV、`report.json`（每个音效的来源页、作者、许可、哈希、剪裁、增益与备选）和 `credits.md`（交付时转述的使用限制与可粘贴署名）。`--out` 和 `--work` 必须是新路径；输入计划须来自同一编译结果，已含 Openverse 音轨时拒绝，避免重复添加。
+- 挑选不试听；原生验收时要听音效，不合适就按上面的方式换关键词重跑。只想看候选时运行 `python3 SKILL/scripts/openverse_sfx.py search --query whoosh --max-duration 1.2`，只检索不下载，也占一次额度。Openverse 不核验许可状态，发布前可按 `credits.md` 的原始页面复核；许可边界见 [运行依赖与来源](dependencies-and-notices.md)。
 
 ## `jy14-headless-plan/v1`
 
